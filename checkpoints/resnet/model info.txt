@@ -1,0 +1,5 @@
+Total epochs : 350
+Final train loss : 0.004
+Final train accuracy : 99.920%
+Final test loss : 0.582
+Final test accuracy : 87.230%
