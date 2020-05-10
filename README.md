@@ -5,3 +5,4 @@
 * Change environment: `source activate kd_pytorch`
 * Install packages: `pip install -r requirements.txt`
 
+![Performance Chart](Performance_chart.png)
