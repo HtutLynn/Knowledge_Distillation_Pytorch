@@ -1,9 +1,13 @@
 import torch
 import torch.nn
 import torch.nn.functional as F
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.data import TensorDataset
 
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 import os
 import sys
 import time
@@ -104,19 +108,65 @@ class Functions(object):
     @staticmethod
     def temp_softmax(logits, temp):
         """
-        Implementation of the Temperature layered softmax func mentioned in Hinton's KD paper
+        Implementation of the Temperature layered softmax func mentioned in Hinton's KD paper\
+        # This implementation is only for research purposes, in actual knowledge process, we are going to use
+        softmax function from torch.nn.functional
         :params logits: Feature embeddings/Outputs of the neural network
         :params temp: Temperture value, to be used in softmax to get soft targets
         :return soft_targets: Resulted soft target distribution
         """
+        if isinstance(logits, torch.Tensor):
+            
+            # check if logits is multi logits or single logits
+            if len(logits.shape) > 1:
+                # minus max value from respective outputs for numerical stability 
+                maxes = torch.max(logits, 1, keepdim=True)[0]
+                logits = logits - maxes
+                temperatured_values = logits / temp
+                # exponentiate all the values in the logits
+                exp_values = torch.exp(temperatured_values)
+                temperatured_exp_sum = torch.sum(exp_values, 1, keepdim=True)
+            else:
+                maxes = torch.max(logits)
+                logits = logits - maxes
+                temperatured_values = logits / temp
+                exp_values = torch.exp(temperatured_values)
+                temperatured_exp_sum = torch.sum(exp_values)
 
-        temperatured_values = logits / temp
-        # exponentiate all the values in the logits
-        exp_values = torch.exp(temperatured_values)
-        temperatured_exp_sum = torch.sum(exp_values, 1, keepdim=True)
-        soft_targets = exp_values / temperatured_exp_sum
+            soft_targets = exp_values / temperatured_exp_sum
 
-        return soft_targets
+            return soft_targets
+        
+        elif isinstance(logits, np.ndarray):
+            # check if logits is multi logits or single logits
+            if len(logits.shape) > 1:
+                # minus max value from respective outputs for numerical stability 
+                maxes = np.max(logits, axis=1)
+                for i in range(logits.shape[0]):
+                    logits[i] = logits[i] - maxes[i]
+
+                temperatured_values = logits / temp
+                # exponentiate all the values in the logits
+                temperatured_exp_values = np.exp(temperatured_values)
+                temperatured_exp_sum = np.sum(temperatured_values, axis=1)
+
+                soft_targets = []
+                for i in range(logits.shape[0]):
+                    soft_targets.append(temperatured_exp_values[i] / temperatured_exp_sum[i])
+            else:
+                max = np.max(logits)
+                logits = logits - max
+
+                temperatured_values = logits / temp
+                # exponentiate all the values in the logits
+                temperatured_exp_values = np.exp(temperatured_values)
+                temperatured_exp_sum = np.sum(temperatured_exp_values)
+
+                soft_targets = temperatured_exp_values/temperatured_exp_sum
+            
+            return np.array(soft_targets)
+
+
     
     @staticmethod
     def draw_bar_chart(values, labels):
@@ -196,3 +246,76 @@ class Metrics(object):
         """
 
         return 100 * correct / total
+
+class DatasetGenerator(object):
+    """
+    Create dataset from knowledge distillation using Cifar-10 dataset and logits
+    """
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def construct(train_logits, test_logits):
+        """
+        Accept logits that are generated from a teacher model
+        Construct a dataset for knowledge distillation
+        :param train_logits: logits generated for the train set of cifar-10 by a teacher model
+        :param test_logits: 
+        """
+
+        # Load logits (.npy) files
+        train_logits = np.load(train_logits)
+        train_tensor = torch.from_numpy(train_logits)
+        # convert the data type to have data type consistency
+        train_tensor = train_tensor.float()
+        test_logits = np.load(test_logits)
+        test_tensor = torch.from_numpy(test_logits)
+        # convert the data type to have data type consistency
+        test_tensor = test_tensor.float()
+
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        ])
+        trainset = torchvision.datasets.CIFAR10(root='/home/htut/Desktop/Knowledge_Distillation_Pytorch/datasets', train=True,
+                                                    download=True, transform=transform)
+        trainloader = torch.utils.data.DataLoader(trainset, batch_size=1,
+                                                shuffle=False, num_workers=0)
+
+        testset = torchvision.datasets.CIFAR10(root='/home/htut/Desktop/Knowledge_Distillation_Pytorch/datasets', train=False,
+                                                    download=False, transform=transform)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=1,
+                                                shuffle=False, num_workers=0)
+
+        all_train_images, all_train_labels = [], []
+        all_test_images, all_test_labels = [], []
+
+        for train_data in tqdm(trainloader):
+            train_image, train_label = train_data
+            train_image = train_image.squeeze()# squeeze for deleting batch dimension
+            # convert the data type to have data type consistency
+            # train_label = train_label.float()
+            all_train_images.append(train_image)
+            all_train_labels.append(train_label)
+
+        for test_data in tqdm(testloader):
+            test_image, test_label = test_data
+            test_image = test_image.squeeze() # squeeze for deleting batch dimension
+            # convert the data type to have data type consistency
+            # test_label = test_label.float()
+            all_test_images.append(test_image)
+            all_test_labels.append(test_label)
+
+        # convert the lists containg tensors into tensors
+        train_image_tensor = torch.stack(all_train_images)
+        test_image_tensor = torch.stack(all_test_images)
+
+        train_label_tensor = torch.stack(all_train_labels)
+        test_label_tensor = torch.stack(all_test_labels)
+
+        # construct train datasets for Knowledge Distillation
+        KD_train_dataset = TensorDataset(train_image_tensor, train_label_tensor, train_tensor)
+        KD_test_dataset = TensorDataset(test_image_tensor, test_label_tensor, test_tensor)
+
+        return KD_train_dataset, KD_test_dataset

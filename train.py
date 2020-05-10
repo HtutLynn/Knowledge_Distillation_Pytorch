@@ -13,7 +13,8 @@ import numpy as np
 import time
 import os
 import copy
-from models.resnet import ResNet18
+# from models.resnet import ResNet18
+from models.vgg import VGG
 
 def train(model, optimizer, loss_fn, dataloader):
     """Train the model on `num_steps` batches
@@ -58,7 +59,7 @@ def train(model, optimizer, loss_fn, dataloader):
         total += labels_batch.size(0)
         correct += predicted.eq(labels_batch).sum().item()
 
-        progress_bar(batch_idx, len(dataloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        progress_bar(batch_idx, len(dataloader), 'Train Loss: %.3f | Train Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 
@@ -97,14 +98,14 @@ def eval(model, optimizer, loss_fn, dataloader):
             total += labels_batch.size(0)
             correct += predicted.eq(labels_batch).sum().item()
 
-            progress_bar(batch_idx, len(dataloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            progress_bar(batch_idx, len(dataloader), 'Test Loss: %.3f | Test Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # save checkpoint
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/resnet/resnet18_acc:{}.pt".format(acc)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/vgg/VGG11_acc:{}.pt".format(acc)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -127,10 +128,10 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, loss
         # Run one epoch for both train and test
         print("Epoch {}/{}".format(epoch + 1, total_epochs))
 
-        if epoch == 150:
+        if epoch == 50:
             optimizer = optim.SGD(model.parameters(), lr=0.01,
                       momentum=0.9, weight_decay=5e-4)
-        elif epoch == 250:
+        elif epoch == 100:
             optimizer = optim.SGD(model.parameters(), lr=0.001,
                       momentum=0.9, weight_decay=5e-4)
 
@@ -195,7 +196,8 @@ if __name__ == "__main__":
     model_fn.fc = nn.Linear(num_ftrs, 10)
     """
     # You can swap out any kind of architectire from /models in here
-    model_fn = ResNet18()
+    # model_fn = ResNet18()
+    model_fn = VGG('VGG11')
     model_fn = model_fn.to(device)
 
     # Setup the loss function
@@ -205,6 +207,6 @@ if __name__ == "__main__":
     optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
 
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
-                        optimizer=optimizer_fn, loss_fn=criterion, total_epochs=350)
+                        optimizer=optimizer_fn, loss_fn=criterion, total_epochs=150)
 
     
