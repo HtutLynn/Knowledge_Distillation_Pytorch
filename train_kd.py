@@ -19,7 +19,7 @@ import os
 import copy
 # from models.resnet import ResNet18
 
-from models.vgg import VGG # student model
+from models.cnn import Net # student model
 from models.preact_resnet import PreActResNet18
 
 def train(model, optimizer, dataloader, temperature, alpha):
@@ -115,7 +115,7 @@ def eval(model, optimizer, dataloader, temperature, alpha):
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/vgg/PreAct_ResNet18_VGG16_acc:{}.pt".format(acc)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/cnn/VGG19_CNN_acc:{}.pt".format(acc)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -140,11 +140,11 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, tota
         if epoch == 150:
             # optimizer = optim.SGD(model.parameters(), lr=0.01,
             #           momentum=0.9, weight_decay=5e-4)
-            optimizer_fn = optim.Adam(model_fn.parameters(), lr=0.01)
+            optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.01, weight_decay=5e-4)
         elif epoch == 250:
             # optimizer = optim.SGD(model.parameters(), lr=0.001,
             #           momentum=0.9, weight_decay=5e-4)
-            optimizer_fn = optim.Adam(model_fn.parameters(), lr=0.001)
+            optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.001, weight_decay=5e-4)
 
         # compute number of batches in one epoch(one full pass over the training set)
         train(model, optimizer, train_dataloader, temperature, alpha)
@@ -165,6 +165,8 @@ def loss_fn(outputs, labels):
     """
     return nn.CrossEntropyLoss()(outputs, labels)
 
+# Knowledge Distillation loss (combined loss = KL divergence Loss + Cross Entropy Loss)
+# Implementation is referenced from `https://github.com/peterliht/knowledge-distillation-pytorch`
 def loss_fn_kd(outputs, labels, teacher_outputs, temperature, alpha):
     """
     Compute the knowledge-distillation (KD) loss given outputs, labels.
@@ -217,12 +219,12 @@ if __name__ == "__main__":
     # Configure the Network
     # You can swap out any kind of architectire from /models in here
     # Student model is VGG11 architecture
-    model_fn = VGG('VGG11')
+    model_fn = Net()
     model_fn = model_fn.to(device)
 
     # Setup the optimizer method for all the parameters
     # optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-    optimizer_fn = optim.Adam(model_fn.parameters(), lr=0.1)
+    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
 
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
                         optimizer=optimizer_fn, total_epochs=350, temperature=temperature, alpha=alpha)

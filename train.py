@@ -14,7 +14,7 @@ import time
 import os
 import copy
 # from models.resnet import ResNet18
-from models.vgg import VGG
+from models.googlenet import GoogLeNet
 
 def train(model, optimizer, loss_fn, dataloader):
     """Train the model on `num_steps` batches
@@ -105,7 +105,7 @@ def eval(model, optimizer, loss_fn, dataloader):
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/vgg/VGG11_acc:{}.pt".format(acc)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/googlenet/googlenet_acc:{}.pt".format(acc)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -128,10 +128,10 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, loss
         # Run one epoch for both train and test
         print("Epoch {}/{}".format(epoch + 1, total_epochs))
 
-        if epoch == 50:
+        if epoch == 150:
             optimizer = optim.SGD(model.parameters(), lr=0.01,
                       momentum=0.9, weight_decay=5e-4)
-        elif epoch == 100:
+        elif epoch == 250:
             optimizer = optim.SGD(model.parameters(), lr=0.001,
                       momentum=0.9, weight_decay=5e-4)
 
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     """
     # You can swap out any kind of architectire from /models in here
     # model_fn = ResNet18()
-    model_fn = VGG('VGG11')
+    model_fn = GoogLeNet()
     model_fn = model_fn.to(device)
 
     # Setup the loss function
@@ -207,6 +207,6 @@ if __name__ == "__main__":
     optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
 
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
-                        optimizer=optimizer_fn, loss_fn=criterion, total_epochs=150)
+                        optimizer=optimizer_fn, loss_fn=criterion, total_epochs=350)
 
     
