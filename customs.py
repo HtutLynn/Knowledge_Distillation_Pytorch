@@ -231,6 +231,20 @@ class Functions(object):
 
 
             self.draw_bar_chart(soft_target, numpy_classes)
+
+    @staticmethod
+    def compute_param_count(model):
+        """
+        Compute the total number of trainable parameters in the model
+        :param model: Neural Network model, constructed in pytorch framework
+        :return param_count: Total number of trainable parameters in a network
+        """
+        param_count = 0
+        for param in model.parameters():
+            if param.requires_grad:
+                param_count += param.numel()
+        
+        return param_count
         
 class Metrics(object):
     """
