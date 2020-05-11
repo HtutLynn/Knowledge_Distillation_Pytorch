@@ -1,7 +1,7 @@
 # Knowledge Distillation Pytorch
 This is a repository for experimenting knowledge distillation methods.
 The idea is mainly based on the paper
-["Distilling the Knowledge in a Neural Network"](https://arxiv.org/abs/1503.02531).
+["Distilling the Knowledge in a Neural Network"](https://arxiv.org/abs/1503.02531) by Geoffrey Hinton, Oriol Vinyals, Jeff Dean.
 
 The repo is entirely implemented in [pytorch](https://pytorch.org/) framework and consists of knowledge distillation processes and pipelines.
 
@@ -47,7 +47,7 @@ $ pip install -r requirements.txt
 
 ### Todos
 
- - Data augmentation performable torch.utils.data.TensoeDataset dataset
+ - Data augmentation performable torch.utils.data.TensorDataset dataset
  - Tensorboard
  - Perfomance metrics
  - Finding the best hyparameters for knowledge distillation methods
