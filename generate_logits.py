@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 import numpy as np
 from customs import Functions, Metrics
 # import the model
-from models.resnet import ResNet18
+from models.vgg import VGG
 
 
 transforms = transforms.Compose([
@@ -29,11 +29,11 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=1000,
 
 # setup device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-weights_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/resnet/resnet18_acc:87.51.pt"
-train_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/resnet/train_logits.npy"
-test_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/resnet/test_logits.npy"
+weights_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/vgg/VGG19_acc:93.28.pt"
+train_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/vgg/train_logits_vgg19.npy"
+test_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/vgg/test_logits_vgg19.npy"
 
-model = ResNet18()
+model = VGG('VGG19')
 model.to(device)
 
 # Load the model
@@ -65,7 +65,9 @@ with torch.no_grad():
 
 # convert the lists into numpy array and convert them into float32 for data consistency
 all_train_logits = np.array(all_train_logits).astype(np.float32)
+print(len(all_train_logits))
 all_test_logits = np.array(all_test_logits).astype(np.float32)
+print(len(all_test_logits))
 
 
 # save the logits as npy file

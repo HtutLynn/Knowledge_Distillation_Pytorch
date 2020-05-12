@@ -9,6 +9,7 @@ import torch.nn.functional as functional
 import torchvision
 import torchvision.transforms as transforms
 import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
 # from torch.autograd import Variable
 
 from customs import Functions, Metrics, progress_bar, DatasetGenerator
@@ -20,7 +21,6 @@ import copy
 # from models.resnet import ResNet18
 
 from models.cnn import Net # student model
-from models.preact_resnet import PreActResNet18
 
 def train(model, optimizer, dataloader, temperature, alpha):
     """Train the model on `num_steps` batches
@@ -115,12 +115,12 @@ def eval(model, optimizer, dataloader, temperature, alpha):
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/cnn/VGG19_CNN_acc:{}.pt".format(acc)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/cnn/VGG19_CNN_T3_a0.95_acc:{}.pt".format(acc)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
 
-def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, total_epochs, temperature, alpha):
+def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, scheduler, total_epochs, temperature, alpha):
     """Train the model and evaluate every epoch.
     Args:
         model: (torch.nn.Module) the neural network
@@ -136,18 +136,21 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, tota
 
         # Run one epoch for both train and test
         print("Epoch {}/{}".format(epoch + 1, total_epochs))
-
-        if epoch == 150:
-            # optimizer = optim.SGD(model.parameters(), lr=0.01,
-            #           momentum=0.9, weight_decay=5e-4)
-            optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.01, weight_decay=5e-4)
-        elif epoch == 250:
-            # optimizer = optim.SGD(model.parameters(), lr=0.001,
-            #           momentum=0.9, weight_decay=5e-4)
-            optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.001, weight_decay=5e-4)
+        
+        # manual tuning of learning rate
+        # if epoch == 150:
+        #     # optimizer = optim.SGD(model.parameters(), lr=0.01,
+        #     #           momentum=0.9, weight_decay=5e-4)
+        #     optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.01, weight_decay=5e-4)
+        # elif epoch == 250:
+        #     # optimizer = optim.SGD(model.parameters(), lr=0.001,
+        #     #           momentum=0.9, weight_decay=5e-4)
+        #     optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.001, weight_decay=5e-4)
 
         # compute number of batches in one epoch(one full pass over the training set)
         train(model, optimizer, train_dataloader, temperature, alpha)
+
+        scheduler.step()
 
         # Evaluate for one epoch on test set
         eval(model, optimizer, test_dataloader, temperature, alpha)
@@ -192,8 +195,8 @@ if __name__ == "__main__":
     
     # Student model is PreAct-ResNet18 model
     # Therefore, logits are generated from PreAct-ResNet18 model
-    train_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/preact_resnet/train_logits.npy"
-    test_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/preact_resnet/test_logits.npy"
+    train_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/vgg/train_logits_vgg19.npy"
+    test_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/vgg/test_logits_vgg19.npy"
 
     # generate data for knowledge distillation
     kd_train_set, kd_test_set = DatasetGenerator.construct(train_logits=train_logits, test_logits=test_logits)
@@ -204,8 +207,8 @@ if __name__ == "__main__":
                                             shuffle=False, num_workers=4)
 
     # Setup hyperparameters
-    temperature = 4
-    alpha = 0.5
+    temperature = 3
+    alpha = 0.95
 
     classes = ('plane', 'car', 'bird', 'cat', 'deeer',
                 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -219,14 +222,19 @@ if __name__ == "__main__":
     # Configure the Network
     # You can swap out any kind of architectire from /models in here
     # Student model is VGG11 architecture
-    model_fn = Net()
+    model_fn = Net(num_channels=32, dropout_rate=0.0)
     model_fn = model_fn.to(device)
+    
+    total_param_count = F.compute_param_count(model_fn)
 
     # Setup the optimizer method for all the parameters
     # optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
     optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
 
-    train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
-                        optimizer=optimizer_fn, total_epochs=350, temperature=temperature, alpha=alpha)
+    scheduler = StepLR(optimizer_fn, step_size=50)
 
+    train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
+                        optimizer=optimizer_fn, scheduler=scheduler, total_epochs=150, temperature=temperature, alpha=alpha)
+
+    print("Total number of trainable parameters : {}".format(total_param_count))
     

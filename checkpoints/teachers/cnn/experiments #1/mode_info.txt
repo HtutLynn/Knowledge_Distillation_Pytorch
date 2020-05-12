@@ -1,0 +1,67 @@
+CNN with no dropout and no data augmentation
+
+Total epochs : 350
+Final train loss : 0.967
+Final train accuracy : 66.328%
+Final test loss : 1.060
+Final test accuracy : 63.000%
+
+device : GTX 1070
+training time : 20m 23s
+
+CNN with no dropout and data augmentation
+
+Total epochs : 350
+Final train loss : 1.145
+Final train accuracy : 59.474%
+Final test loss : 1.058
+Final test accuracy : 63.020%
+
+device : GTX 1070
+training time : 21m 33s
+
+CNN with dropout and no data augmentation
+
+Total epochs : 350
+Final train loss : 1.508
+Final train accuracy : 41.522%
+Final test loss : 1.299
+Final test accuracy : 54.520%
+
+device : GTX 1070
+training time : 23m 48s
+
+CNN with dropout and data augmentation
+
+Total epochs : 350
+Final train loss : 1.613
+Final train accuracy : 39.232%
+Final test loss : 1.320
+Final test accuracy : 54.740%
+
+device : GTX 1070
+training time : 23m 38s
+
+CNN with dropout(0.2) and data augmentation 
+
+Total epochs : 350
+Final train loss : 1.348
+Final train accuracy : 50.616%
+Final test loss : 1.136
+Final test accuracy : 60.050%
+
+device : GTX 1070
+training time : 22m 51s
+
+CNN with dropout(0.2) and no data augmentation 
+
+Total epochs : 350
+Final train loss : 1.171
+Final train accuracy : 57.786%
+Final test loss : 1.104
+Final test accuracy : 61.160%
+
+device : GTX 1070
+training time : 22m 51s
+
+total number of parameters : 3424

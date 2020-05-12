@@ -5,6 +5,7 @@ import torch.functional
 import torchvision
 import torchvision.transforms as transforms
 import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
 # from torch.autograd import Variable
 
 from customs import Functions, Metrics, progress_bar
@@ -14,7 +15,7 @@ import time
 import os
 import copy
 # from models.resnet import ResNet18
-from models.googlenet import GoogLeNet
+from models.cnn import Net
 
 def train(model, optimizer, loss_fn, dataloader):
     """Train the model on `num_steps` batches
@@ -105,13 +106,13 @@ def eval(model, optimizer, loss_fn, dataloader):
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/googlenet/googlenet_acc:{}.pt".format(acc)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/cnn/cnn_dropout_aug_acc:{}.pt".format(acc)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
 
 
-def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, loss_fn, total_epochs):
+def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, scheduler, loss_fn, total_epochs):
     """Train the model and evaluate every epoch.
     Args:
         model: (torch.nn.Module) the neural network
@@ -128,15 +129,18 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, loss
         # Run one epoch for both train and test
         print("Epoch {}/{}".format(epoch + 1, total_epochs))
 
-        if epoch == 150:
-            optimizer = optim.SGD(model.parameters(), lr=0.01,
-                      momentum=0.9, weight_decay=5e-4)
-        elif epoch == 250:
-            optimizer = optim.SGD(model.parameters(), lr=0.001,
-                      momentum=0.9, weight_decay=5e-4)
+        # manually tuning of learning rates
+        # if epoch == 10:
+        #     optimizer = optim.SGD(model.parameters(), lr=0.001,
+        #               momentum=0.9, weight_decay=5e-4)
+        # elif epoch == 20:
+        #     optimizer = optim.SGD(model.parameters(), lr=0.0001,
+        #               momentum=0.9, weight_decay=5e-4)
 
         # compute number of batches in one epoch(one full pass over the training set)
         train(model, optimizer, loss_fn, train_dataloader)
+        
+        scheduler.step()
 
         # Evaluate for one epoch on test set
         eval(model, optimizer, loss_fn, test_dataloader)
@@ -197,16 +201,20 @@ if __name__ == "__main__":
     """
     # You can swap out any kind of architectire from /models in here
     # model_fn = ResNet18()
-    model_fn = GoogLeNet()
+    model_fn = Net(num_channels=32, dropout_rate=0.5)
     model_fn = model_fn.to(device)
-
+    
+    total_param_count = F.compute_param_count(model_fn)
     # Setup the loss function
     criterion = nn.CrossEntropyLoss()
 
     # Setup the optimizer method for all the parameters
-    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
+    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.01, weight_decay=5e-4)
+
+    # setup learning rate scheduler 
+    scheduler = StepLR(optimizer_fn, step_size=50, gamma=0.1)
 
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
-                        optimizer=optimizer_fn, loss_fn=criterion, total_epochs=350)
+                        optimizer=optimizer_fn, scheduler=scheduler, loss_fn=criterion, total_epochs=150)
 
-    
+    print("Total number of trainable parameters : {}".format(total_param_count))

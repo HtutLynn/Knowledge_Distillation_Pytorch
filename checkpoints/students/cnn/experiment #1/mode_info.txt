@@ -1,0 +1,43 @@
+Knowledge Distillation from VGG19 to 5 layered CNN
+
+dropout=0.0, Temp = 4, Alpha=0.5
+Total epochs : 350
+Final train loss : 0.792
+Final train accuracy : 64.884%
+Final test loss : 0.825
+Final test accuracy : 62.250%
+
+device : GTX 1070
+training time : 13m 23s
+
+
+
+dropout=0.0, Temp = 4, Alpha=0.95
+Total epochs : 350
+Final train loss : 0.550
+Final train accuracy : 54.632%
+Final test loss : 0.570
+Final test accuracy : 57.600(62.59)%
+
+device : GTX 1070
+training time : 13m 27s
+
+
+dropout=0.0, Temp = 6, Alpha=0.5
+Total epochs : 350
+Final train loss : 0.761
+Final train accuracy : 65.352%
+Final test loss : 0.766
+Final test accuracy : 63.670%
+
+device : GTX 1070
+training time : 13m 55s
+
+dropout=0.0, Temp = 6, Alpha=0.95
+Final train loss : 0.506
+Final train accuracy : 64.436%
+Final test loss : 0.467
+Final test accuracy : 62.66%
+
+device : GTX 1070
+training time : 23m 38s
