@@ -15,7 +15,7 @@ import time
 import os
 import copy
 # from models.resnet import ResNet18
-from models.cnn import Net
+from models.vgg import VGG
 
 def train(model, optimizer, loss_fn, dataloader):
     """Train the model on `num_steps` batches
@@ -64,7 +64,7 @@ def train(model, optimizer, loss_fn, dataloader):
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 
-def eval(model, optimizer, loss_fn, dataloader):
+def eval(model, loss_fn, dataloader):
     """Train the model on `num_steps` batches
     Args:
         model: (torch.nn.Module) the neural network
@@ -102,11 +102,12 @@ def eval(model, optimizer, loss_fn, dataloader):
             progress_bar(batch_idx, len(dataloader), 'Test Loss: %.3f | Test Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
+    current_loss = test_loss/len(dataloader)
     # save checkpoint
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/cnn/cnn_dropout_aug_acc:{}.pt".format(acc)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/retake/VGG19_acc:{:.3f}_loss:{:.3f}.pt".format(acc, current_loss)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -129,21 +130,13 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, sche
         # Run one epoch for both train and test
         print("Epoch {}/{}".format(epoch + 1, total_epochs))
 
-        # manually tuning of learning rates
-        # if epoch == 10:
-        #     optimizer = optim.SGD(model.parameters(), lr=0.001,
-        #               momentum=0.9, weight_decay=5e-4)
-        # elif epoch == 20:
-        #     optimizer = optim.SGD(model.parameters(), lr=0.0001,
-        #               momentum=0.9, weight_decay=5e-4)
-
         # compute number of batches in one epoch(one full pass over the training set)
         train(model, optimizer, loss_fn, train_dataloader)
         
         scheduler.step()
 
         # Evaluate for one epoch on test set
-        eval(model, optimizer, loss_fn, test_dataloader)
+        eval(model, loss_fn, test_dataloader)
         
 
 if __name__ == "__main__":
@@ -181,27 +174,16 @@ if __name__ == "__main__":
 
     # setup device for training
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(device)
 
     # Setup best accuracy for comparing and model checkpoints
     best_accuracy = 0.0
 
     # Configure the Network
 
-    """
-    Finetuning code snippet : need to change the output dimensions of resnet
-    # path of the pretrained weights of resnet-18
-    weights_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/models/resnet/resnet18-5c106cde.pth"
-    model_fn = ResNet18()
-    model_fn.load_state_dict(torch.load(weights_path))
-    print("Weights have been loaded!")
-    num_ftrs = model_fn.fc.in_features
-
-    # Set the output dimensions into 10 (total number of classes in cifar-10 dataaset)
-    model_fn.fc = nn.Linear(num_ftrs, 10)
-    """
     # You can swap out any kind of architectire from /models in here
     # model_fn = ResNet18()
-    model_fn = Net(num_channels=32, dropout_rate=0.5)
+    model_fn = VGG('VGG19')
     model_fn = model_fn.to(device)
     
     total_param_count = F.compute_param_count(model_fn)
@@ -209,7 +191,7 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
 
     # Setup the optimizer method for all the parameters
-    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.01, weight_decay=5e-4)
+    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
 
     # setup learning rate scheduler 
     scheduler = StepLR(optimizer_fn, step_size=50, gamma=0.1)

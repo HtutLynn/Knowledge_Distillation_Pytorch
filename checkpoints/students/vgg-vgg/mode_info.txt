@@ -1,0 +1,54 @@
+Knowledge Distillation from VGG19 to VGG11
+
+dropout=0.0, Temp = 4, Alpha=0.5
+Total epochs : 150
+Final train loss : 0.003
+Final train accuracy : 100.000 %
+Final test loss : 0.329
+Final test accuracy : 86.56%
+
+device : GTX 1070
+training time : 37m 49s
+
+
+dropout=0.0, Temp = 4, Alpha=0.95
+Total epochs : 150
+Final train loss : 0.002
+Final train accuracy : 99.998%
+Final test loss : 0.153
+Final test accuracy : 86.15%
+
+device : GTX 1070
+training time : 37m 45s
+
+
+dropout=0.0, Temp = 6, Alpha=0.5
+Total epochs : 150
+Final train loss : 0.03
+Final train accuracy : 100.00%
+Final test loss : 0.298
+Final test accuracy : 87.0% (75.640%)
+
+device : GTX 1070
+training time : 37m 55s
+
+dropout=0.0, Temp = 6, Alpha=0.95
+Total epochs : 150
+Final train loss : 0.002
+Final train accuracy : 99.998%
+Final test loss : 0.140
+Final test accuracy : 86.37%
+
+device : GTX 1070
+training time : 39m 46s
+
+dropout=0.0, Temp = 9, Alpha=0.5
+Total epochs : 150
+Final train loss : 0.004
+Final train accuracy : 100.00%
+Final test loss : 0.313
+Final test accuracy : 86.83% (75.640%)
+
+device : GTX 1070
+training time : 38m 33s
+

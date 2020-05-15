@@ -20,7 +20,7 @@ import os
 import copy
 # from models.resnet import ResNet18
 
-from models.cnn import Net # student model
+from models.vgg import VGG # student model
 
 def train(model, optimizer, dataloader, temperature, alpha):
     """Train the model on `num_steps` batches
@@ -110,12 +110,13 @@ def eval(model, optimizer, dataloader, temperature, alpha):
 
             progress_bar(batch_idx, len(dataloader), 'Test Loss: %.3f | Test Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
+    
+    current_loss = test_loss/len(dataloader)
     # save checkpoint
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/cnn/VGG19_CNN_T3_a0.95_acc:{}.pt".format(acc)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/retake/VGG11_T6_a0.5_acc:{:.3f}_loss_{:.3f}.pt".format(acc, current_loss)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -136,16 +137,6 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, sche
 
         # Run one epoch for both train and test
         print("Epoch {}/{}".format(epoch + 1, total_epochs))
-        
-        # manual tuning of learning rate
-        # if epoch == 150:
-        #     # optimizer = optim.SGD(model.parameters(), lr=0.01,
-        #     #           momentum=0.9, weight_decay=5e-4)
-        #     optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.01, weight_decay=5e-4)
-        # elif epoch == 250:
-        #     # optimizer = optim.SGD(model.parameters(), lr=0.001,
-        #     #           momentum=0.9, weight_decay=5e-4)
-        #     optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.001, weight_decay=5e-4)
 
         # compute number of batches in one epoch(one full pass over the training set)
         train(model, optimizer, train_dataloader, temperature, alpha)
@@ -207,8 +198,8 @@ if __name__ == "__main__":
                                             shuffle=False, num_workers=4)
 
     # Setup hyperparameters
-    temperature = 3
-    alpha = 0.95
+    temperature = 6
+    alpha = 0.5
 
     classes = ('plane', 'car', 'bird', 'cat', 'deeer',
                 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -222,7 +213,7 @@ if __name__ == "__main__":
     # Configure the Network
     # You can swap out any kind of architectire from /models in here
     # Student model is VGG11 architecture
-    model_fn = Net(num_channels=32, dropout_rate=0.0)
+    model_fn = VGG('VGG11')
     model_fn = model_fn.to(device)
     
     total_param_count = F.compute_param_count(model_fn)
@@ -231,7 +222,7 @@ if __name__ == "__main__":
     # optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
     optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
 
-    scheduler = StepLR(optimizer_fn, step_size=50)
+    scheduler = StepLR(optimizer_fn, step_size=50, gamma=0.1)
 
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
                         optimizer=optimizer_fn, scheduler=scheduler, total_epochs=150, temperature=temperature, alpha=alpha)
