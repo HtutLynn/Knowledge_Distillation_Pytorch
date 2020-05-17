@@ -22,10 +22,8 @@ def train(model, optimizer, loss_fn, dataloader):
     Args:
         model: (torch.nn.Module) the neural network
         optimizer: (torch.optim) optimizer for parameters of model
-        lr_scheduler: (torch.optim.lr_scheduler) Adjustment function for the learning rate
         loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training data
-        num_steps: (int) number of batches to train on, each of size params.batch_size
     """
 
     # Set the model into train mode
@@ -65,13 +63,11 @@ def train(model, optimizer, loss_fn, dataloader):
 
 
 def eval(model, loss_fn, dataloader):
-    """Train the model on `num_steps` batches
+    """Evaluate the trained model's performance on Test data on batches
     Args:
         model: (torch.nn.Module) the neural network
-        optimizer: (torch.optim) optimizer for parameters of model
         loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training datas
-        num_steps: (int) number of batches to train on, each of size params.batch_size
     """
 
     # Set the model into test mode
@@ -118,10 +114,10 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, sche
     Args:
         model: (torch.nn.Module) the neural network
         train_dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training data
-        val_dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches validation data
+        test_dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches validation data
         optimizer: (torch.optim) optimizer for parameters of model
         lr_scheduler: (torch.optim.lr_scheduler) Adjustment function for the learning rate
-        loss_ft: a function that takes batch_output and batch_labels and computes the loss for the batch
+        loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         total_epochs: total number of epochs
     """
 

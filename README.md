@@ -10,6 +10,7 @@ The repo is entirely implemented in [pytorch](https://pytorch.org/) framework an
 python 3.6
 torch
 torchvision
+torchsummary
 numpy
 matplotlib
 tqdm
@@ -50,7 +51,7 @@ $ pip install -r requirements.txt
  - Data augmentation performable torch.utils.data.TensorDataset dataset
  - Tensorboard
  - Perfomance metrics
- - Compute_loss function for computing the mean loss for the data points that the model has mis-classified.
+ - Compute_loss function for computing the mean loss for the data points that the model has mis-classified and correctly classified for analyisis purpose.
  - Google Colab trainable/runnable notebooks
  - Refactor the codebase to more readable format/style
  - Finding the best hyparameters for knowledge distillation methods

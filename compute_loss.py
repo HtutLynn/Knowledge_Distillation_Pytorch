@@ -18,7 +18,7 @@ import copy
 from models.vgg import VGG
 
 def eval(model, loss_fn, dataloader):
-    """Train the model on `num_steps` batches
+    """Evaluate the trained model's performance on Test data
     Args:
         model: (torch.nn.Module) the neural network
         optimizer: (torch.optim) optimizer for parameters of model
@@ -49,6 +49,7 @@ def eval(model, loss_fn, dataloader):
             
             test_loss += loss.item()
             _, predicted = outputs.max(1)
+
             total += labels_batch.size(0)
             correct += predicted.eq(labels_batch).sum().item()
 
@@ -60,14 +61,64 @@ def eval(model, loss_fn, dataloader):
     print("Loss value of model on test data: {}".format(current_loss))
 
 
+def compute_seperate_losses(model, loss_fn, dataloader):
+    """ Compute losses for the data points that then model has mis-classified and correctly classified seperately
+    Args:
+        model: (torch.nn.Module) the neural network
+        loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
+        dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training datas
+    """
+
+    # Set the model into test mode
+    model.eval()
+
+    misclassified_loss = 0
+    misclassified_total = 0
+
+    correct_loss = 0
+    correct_total = 0
+
+    with torch.no_grad():
+        for single_test_image, single_label in tqdm(dataloader):
+
+            # move the data onto device
+            single_test_image, single_label = single_test_image.to(device), single_label.to(device)
+
+            # compute the model output
+            outputs = model(single_test_image)
+            loss = loss_fn(outputs, single_label)
+
+            _, predicted = outputs.max(1)
+
+            if predicted.eq(single_label).item():
+                correct_total += 1
+
+                # item() method extracts the loss’s value as a Python float.
+                correct_loss += loss.item()
+            else:
+                misclassified_total += 1
+
+                # item() method extracts the loss’s value as a Python float.
+                misclassified_loss += loss.item()                
+
+            
+        mean_misclassified_loss = misclassified_loss/misclassified_total
+        mean_correct_loss = correct_loss/correct_total
+
+    print("Mean loss value of the data points that model has mis-classified : {:.3f}".format(mean_misclassified_loss))
+    print("Total loss value of the data points that model has mis-classified : {:.3f}".format(misclassified_loss))
+    print("Mean loss value of the data points that model has correctly classified : {:.3f}".format(mean_correct_loss))
+    print("Total loss value of the data points that model has correctly classified : {:.3f}".format(correct_loss))
+
+
 if __name__ == "__main__":
     
 
     F = Functions()
     M = Metrics()
 
-    weights_path = "checkpoints/teachers/vgg/VGG19_acc:93.28.pt"
-    # weights_path = "checkpoints/teachers/vgg/vgg11_dataaug_acc:91.95.pt"
+    # weights_path = "checkpoints/teachers/vgg/VGG19_acc:93.28.pt"
+    weights_path = "checkpoints/teachers/vgg/vgg11_dataaug_acc:91.95.pt"
     # weights_path = "checkpoints/students/vgg-vgg/VGG19_VGG11_T6_a0.5_acc:87.0.pt"
     # weights_path = "checkpoints/students/vgg-vgg/VGG19_VGG11_T4_a0.5_acc:86.56.pt"
 
@@ -82,6 +133,9 @@ if __name__ == "__main__":
                                             download=True, transform=transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=100,
                                             shuffle=False, num_workers=4)
+    
+    singleloader = torch.utils.data.DataLoader(testset, batch_size=1,
+                                            shuffle=False, num_workers=0)
 
     classes = ('plane', 'car', 'bird', 'cat', 'deeer',
                 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -94,7 +148,7 @@ if __name__ == "__main__":
     # You can swap out any kind of architectire from /models in here
     # model_fn = ResNet18()
     # model_fn = VGG('VGG11')
-    model_fn = VGG('VGG19')
+    model_fn = VGG('VGG11')
     model_fn = model_fn.to(device)
 
 
@@ -105,3 +159,5 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
 
     eval(model=model_fn, loss_fn=criterion, dataloader=testloader)
+
+    compute_seperate_losses(model=model_fn, loss_fn=criterion, dataloader=singleloader)

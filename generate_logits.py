@@ -65,10 +65,7 @@ with torch.no_grad():
 
 # convert the lists into numpy array and convert them into float32 for data consistency
 all_train_logits = np.array(all_train_logits).astype(np.float32)
-print(len(all_train_logits))
 all_test_logits = np.array(all_test_logits).astype(np.float32)
-print(len(all_test_logits))
-
 
 # save the logits as npy file
 np.save(train_logits_path, all_train_logits)

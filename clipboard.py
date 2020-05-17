@@ -1,3 +1,8 @@
+"""
+clipboard.py is a python script for testing ideas, api tutorials and
+test implemention of algorithms
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

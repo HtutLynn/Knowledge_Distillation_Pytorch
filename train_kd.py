@@ -23,14 +23,14 @@ import copy
 from models.vgg import VGG # student model
 
 def train(model, optimizer, dataloader, temperature, alpha):
-    """Train the model on `num_steps` batches
+    """Train the model on batches
     Args:
         model: (torch.nn.Module) the neural network
         optimizer: (torch.optim) optimizer for parameters of model
-        lr_scheduler: (torch.optim.lr_scheduler) Adjustment function for the learning rate
         loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training data
-        num_steps: (int) number of batches to train on, each of size params.batch_size
+        temperature : (int) The value of temperature to be applied on the logits of model to gain softtarget
+        alpha : Weight parameter to balance CrossEntropy loss and KL Divergence loss
     """
 
     # Set the model into train mode
@@ -70,14 +70,14 @@ def train(model, optimizer, dataloader, temperature, alpha):
         progress_bar(batch_idx, len(dataloader), 'Train Loss: %.3f | Train Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-def eval(model, optimizer, dataloader, temperature, alpha):
-    """Train the model on `num_steps` batches
+def eval(model, dataloader, temperature, alpha):
+    """Evaluate the trained model's performance on Test data on batches
     Args:
         model: (torch.nn.Module) the neural network
-        optimizer: (torch.optim) optimizer for parameters of model
         loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training datas
-        num_steps: (int) number of batches to train on, each of size params.batch_size
+        temperature : (int) The value of temperature to be applied on the logits of model to gain softtarget
+        alpha : Weight parameter to balance CrossEntropy loss and KL Divergence loss
     """
 
     # Set the model into test mode
@@ -126,7 +126,7 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, sche
     Args:
         model: (torch.nn.Module) the neural network
         train_dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training data
-        val_dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches validation data
+        test_dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches validation data
         optimizer: (torch.optim) optimizer for parameters of model
         lr_scheduler: (torch.optim.lr_scheduler) Adjustment function for the learning rate
         loss_ft: a function that takes batch_output and batch_labels and computes the loss for the batch
