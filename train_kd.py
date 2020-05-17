@@ -116,7 +116,7 @@ def eval(model, optimizer, dataloader, temperature, alpha):
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/retake/VGG11_T6_a0.5_acc:{:.3f}_loss_{:.3f}.pt".format(acc, current_loss)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/retake/VGG11_T4_a0.5_acc:{:.3f}_loss_{:.3f}.pt".format(acc, current_loss)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -198,7 +198,7 @@ if __name__ == "__main__":
                                             shuffle=False, num_workers=4)
 
     # Setup hyperparameters
-    temperature = 6
+    temperature = 4
     alpha = 0.5
 
     classes = ('plane', 'car', 'bird', 'cat', 'deeer',

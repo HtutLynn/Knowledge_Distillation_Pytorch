@@ -66,8 +66,8 @@ if __name__ == "__main__":
     F = Functions()
     M = Metrics()
 
-    # weights_path = "checkpoints/teachers/vgg/VGG19_acc:93.28.pt"
-    weights_path = "checkpoints/teachers/vgg/vgg11_dataaug_acc:91.95.pt"
+    weights_path = "checkpoints/teachers/vgg/VGG19_acc:93.28.pt"
+    # weights_path = "checkpoints/teachers/vgg/vgg11_dataaug_acc:91.95.pt"
     # weights_path = "checkpoints/students/vgg-vgg/VGG19_VGG11_T6_a0.5_acc:87.0.pt"
     # weights_path = "checkpoints/students/vgg-vgg/VGG19_VGG11_T4_a0.5_acc:86.56.pt"
 
@@ -93,8 +93,8 @@ if __name__ == "__main__":
     
     # You can swap out any kind of architectire from /models in here
     # model_fn = ResNet18()
-    model_fn = VGG('VGG11')
-    # model_fn = VGG('VGG19')
+    # model_fn = VGG('VGG11')
+    model_fn = VGG('VGG19')
     model_fn = model_fn.to(device)
 
 

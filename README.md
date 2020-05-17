@@ -50,9 +50,14 @@ $ pip install -r requirements.txt
  - Data augmentation performable torch.utils.data.TensorDataset dataset
  - Tensorboard
  - Perfomance metrics
+ - Compute_loss function for computing the mean loss for the data points that the model has mis-classified.
+ - Google Colab trainable/runnable notebooks
+ - Refactor the codebase to more readable format/style
  - Finding the best hyparameters for knowledge distillation methods
 
 
 ### References
 [https://github.com/peterliht/knowledge-distillation-pytorch](https://github.com/peterliht/knowledge-distillation-pytorch)
+
+
 [Pytorch-cifar](https://github.com/kuangliu/pytorch-cifar)
