@@ -1,6 +1,7 @@
 torch
 torchvision
 torchsummary
+tensorboard
 tqdm
 numpy
 matplotlib

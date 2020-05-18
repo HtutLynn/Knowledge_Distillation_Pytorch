@@ -11,6 +11,9 @@ import torchvision.transforms as transforms
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 # from torch.autograd import Variable
+# Tensorboard functionality
+from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
 
 from customs import Functions, Metrics, progress_bar, DatasetGenerator
 from tqdm import tqdm
@@ -22,7 +25,12 @@ import copy
 
 from models.vgg import VGG # student model
 
-def train(model, optimizer, dataloader, temperature, alpha):
+# Function for getting learning rate from optimizer
+def get_lr(optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
+
+def train(model, optimizer, dataloader, temperature, alpha, epoch):
     """Train the model on batches
     Args:
         model: (torch.nn.Module) the neural network
@@ -31,14 +39,18 @@ def train(model, optimizer, dataloader, temperature, alpha):
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training data
         temperature : (int) The value of temperature to be applied on the logits of model to gain softtarget
         alpha : Weight parameter to balance CrossEntropy loss and KL Divergence loss
+        epoch: current epoch
     """
 
     # Set the model into train mode
     model.train()
 
     train_loss = 0
+    KLD_loss = 0
+    CE_loss = 0
     correct = 0
     total = 0
+    datacount = len(dataloader)
 
     for batch_idx, (train_batch, labels_batch, logits_batch) in enumerate(dataloader):
 
@@ -55,7 +67,8 @@ def train(model, optimizer, dataloader, temperature, alpha):
 
         # compute model outputs and loss
         outputs = model(train_batch)
-        loss = loss_fn_kd(outputs, labels_batch, logits_batch, temperature, alpha)
+        # loss = loss_fn_kd(outputs, labels_batch, logits_batch, temperature, alpha)
+        loss, KLD, CE = all_kd_loss_fns(outputs, labels_batch, logits_batch, temperature, alpha)
         loss.backward()
 
         # after computing gradients based on current batch loss,
@@ -63,14 +76,28 @@ def train(model, optimizer, dataloader, temperature, alpha):
         optimizer.step()
 
         train_loss += loss.item()
+        KLD_loss += KLD.item()
+        CE_loss += CE.item()
         _, predicted = outputs.max(1)
         total += labels_batch.size(0)
         correct += predicted.eq(labels_batch).sum().item()
 
+        # get learning rate
+        current_lr = get_lr(optimizer=optimizer)
+
+        # write to tensorboard
+        writer.add_scalar('train/KD_loss', train_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+        writer.add_scalar('train/KL_Div', KLD_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+        writer.add_scalar('train/CE_loss', CE_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+        writer.add_scalar('train/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
+        writer.add_scalar('Learning rate', current_lr)
+        writer.add_scalar('Temperature', temperature)
+        writer.add_scalar('Alpha', alpha)
+
         progress_bar(batch_idx, len(dataloader), 'Train Loss: %.3f | Train Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-def eval(model, dataloader, temperature, alpha):
+def eval(model, dataloader, temperature, alpha, epoch):
     """Evaluate the trained model's performance on Test data on batches
     Args:
         model: (torch.nn.Module) the neural network
@@ -78,14 +105,18 @@ def eval(model, dataloader, temperature, alpha):
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training datas
         temperature : (int) The value of temperature to be applied on the logits of model to gain softtarget
         alpha : Weight parameter to balance CrossEntropy loss and KL Divergence loss
+        epoch: current epoch
     """
 
     # Set the model into test mode
     model.eval()
 
     test_loss = 0
+    KLD_loss = 0
+    CE_loss = 0
     correct = 0
     total = 0
+    datacount = len(dataloader)
 
     # check global variable `best_accuracy`
     global best_accuracy
@@ -101,12 +132,21 @@ def eval(model, dataloader, temperature, alpha):
 
             # compute the model output
             outputs = model(test_batch)
-            loss = loss_fn_kd(outputs, labels_batch, logits_batch, temperature, alpha)
+            # loss = loss_fn_kd(outputs, labels_batch, logits_batch, temperature, alpha)
+            loss, KLD, CE = all_kd_loss_fns(outputs, labels_batch, logits_batch, temperature, alpha)
             
             test_loss += loss.item()
+            KLD_loss += KLD.item()
+            CE_loss += CE.item()
             _, predicted = outputs.max(1)
             total += labels_batch.size(0)
             correct += predicted.eq(labels_batch).sum().item()
+
+            # log the test_loss
+            writer.add_scalar('test/KD_loss', test_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+            writer.add_scalar('test/KL_Div', KLD_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+            writer.add_scalar('test/CE_loss', CE_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+            writer.add_scalar('test/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
 
             progress_bar(batch_idx, len(dataloader), 'Test Loss: %.3f | Test Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
@@ -139,12 +179,12 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, sche
         print("Epoch {}/{}".format(epoch + 1, total_epochs))
 
         # compute number of batches in one epoch(one full pass over the training set)
-        train(model, optimizer, train_dataloader, temperature, alpha)
+        train(model, optimizer, train_dataloader, temperature, alpha, epoch)
 
         scheduler.step()
 
         # Evaluate for one epoch on test set
-        eval(model, optimizer, test_dataloader, temperature, alpha)
+        eval(model, optimizer, test_dataloader, temperature, alpha, epoch)
 
 def loss_fn(outputs, labels):
     """
@@ -175,6 +215,25 @@ def loss_fn_kd(outputs, labels, teacher_outputs, temperature, alpha):
               functional.cross_entropy(outputs, labels) * (1. - alpha)
 
     return KD_loss
+
+def all_kd_loss_fns(outputs, labels, teacher_outputs, temperature, alpha):
+    """
+    Compute the knowledge-distillation (KD) loss given outputs, labels.
+    "Hyperparameters": temperature and alpha
+    NOTE: the KL Divergence for PyTorch comparing the softmaxs of teacher
+    and student expects the input tensor to be log probabilities!
+    """
+    alpha = alpha
+    T = temperature
+    KL_Divergence = nn.KLDivLoss()(functional.log_softmax(outputs/T, dim=1),
+                             functional.softmax(teacher_outputs/T, dim=1))
+
+    Cross_Entropy_loss = functional.cross_entropy(outputs, labels)
+
+    KD_loss = KL_Divergence * (alpha * T * T) + Cross_Entropy_loss * (1. - alpha)
+
+    return KD_loss, KL_Divergence, Cross_Entropy_loss
+
 
 
 if __name__ == "__main__":
@@ -210,13 +269,16 @@ if __name__ == "__main__":
     # Setup best accuracy for comparing and model checkpoints
     best_accuracy = 0.0
 
+    # setup Tensorboard file path
+    writer = SummaryWriter('experiments/students/resnet/...')
+
     # Configure the Network
     # You can swap out any kind of architectire from /models in here
     # Student model is VGG11 architecture
     model_fn = VGG('VGG11')
     model_fn = model_fn.to(device)
     
-    total_param_count = F.compute_param_count(model_fn)
+    summary(model_fn, (3, 32, 32))
 
     # Setup the optimizer method for all the parameters
     # optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
@@ -227,5 +289,4 @@ if __name__ == "__main__":
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
                         optimizer=optimizer_fn, scheduler=scheduler, total_epochs=150, temperature=temperature, alpha=alpha)
 
-    print("Total number of trainable parameters : {}".format(total_param_count))
-    
+    writer.close()

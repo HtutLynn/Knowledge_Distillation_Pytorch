@@ -11,6 +11,7 @@ python 3.6
 torch
 torchvision
 torchsummary
+tensorboard
 numpy
 matplotlib
 tqdm

@@ -7,6 +7,9 @@ import torchvision.transforms as transforms
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 # from torch.autograd import Variable
+# Tensorboard functionality
+from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
 
 from customs import Functions, Metrics, progress_bar
 from tqdm import tqdm
@@ -15,15 +18,22 @@ import time
 import os
 import copy
 # from models.resnet import ResNet18
-from models.vgg import VGG
+from models.resnet import ResNet34
 
-def train(model, optimizer, loss_fn, dataloader):
+# Function for getting learning rate from optimizer
+def get_lr(optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
+
+
+def train(model, optimizer, loss_fn, dataloader, epoch):
     """Train the model on `num_steps` batches
     Args:
         model: (torch.nn.Module) the neural network
         optimizer: (torch.optim) optimizer for parameters of model
         loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training data
+        epoch: current epoch
     """
 
     # Set the model into train mode
@@ -32,6 +42,7 @@ def train(model, optimizer, loss_fn, dataloader):
     train_loss = 0
     correct = 0
     total = 0
+    datacount = len(dataloader)
 
     for batch_idx, (train_batch, labels_batch) in enumerate(dataloader):
 
@@ -57,17 +68,25 @@ def train(model, optimizer, loss_fn, dataloader):
         _, predicted = outputs.max(1)
         total += labels_batch.size(0)
         correct += predicted.eq(labels_batch).sum().item()
+        # get learning rate
+        current_lr = get_lr(optimizer=optimizer)
+
+        # write to tensorboard
+        writer.add_scalar('train/loss', train_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+        writer.add_scalar('train/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
+        writer.add_scalar('Learning rate', current_lr)
 
         progress_bar(batch_idx, len(dataloader), 'Train Loss: %.3f | Train Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 
-def eval(model, loss_fn, dataloader):
+def eval(model, loss_fn, dataloader, epoch):
     """Evaluate the trained model's performance on Test data on batches
     Args:
         model: (torch.nn.Module) the neural network
         loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training datas
+        epoch: current epoch
     """
 
     # Set the model into test mode
@@ -76,7 +95,8 @@ def eval(model, loss_fn, dataloader):
     test_loss = 0
     correct = 0
     total = 0
-
+    datacount = len(dataloader)
+    
     # check global variable `best_accuracy`
     global best_accuracy
 
@@ -94,6 +114,10 @@ def eval(model, loss_fn, dataloader):
             _, predicted = outputs.max(1)
             total += labels_batch.size(0)
             correct += predicted.eq(labels_batch).sum().item()
+            
+            # log the test_loss
+            writer.add_scalar('test/loss', test_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+            writer.add_scalar('test/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
 
             progress_bar(batch_idx, len(dataloader), 'Test Loss: %.3f | Test Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
@@ -103,7 +127,7 @@ def eval(model, loss_fn, dataloader):
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/retake/VGG19_acc:{:.3f}_loss:{:.3f}.pt".format(acc, current_loss)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/resnet/resnet34_acc:{:.3f}_loss:{:.3f}.pt".format(acc, current_loss)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -127,12 +151,12 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, sche
         print("Epoch {}/{}".format(epoch + 1, total_epochs))
 
         # compute number of batches in one epoch(one full pass over the training set)
-        train(model, optimizer, loss_fn, train_dataloader)
+        train(model, optimizer, loss_fn, train_dataloader, epoch)
         
         scheduler.step()
 
         # Evaluate for one epoch on test set
-        eval(model, loss_fn, test_dataloader)
+        eval(model, loss_fn, test_dataloader, epoch)
         
 
 if __name__ == "__main__":
@@ -170,7 +194,9 @@ if __name__ == "__main__":
 
     # setup device for training
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print(device)
+    
+    # setup Tensorboard file path
+    writer = SummaryWriter('experiments/teachers/resnet/resnet34_cifar10_#0')
 
     # Setup best accuracy for comparing and model checkpoints
     best_accuracy = 0.0
@@ -178,11 +204,12 @@ if __name__ == "__main__":
     # Configure the Network
 
     # You can swap out any kind of architectire from /models in here
-    # model_fn = ResNet18()
-    model_fn = VGG('VGG19')
+    model_fn = ResNet34()
     model_fn = model_fn.to(device)
     
-    total_param_count = F.compute_param_count(model_fn)
+
+    # print summary of model
+    summary(model_fn, (3, 32, 32))
     # Setup the loss function
     criterion = nn.CrossEntropyLoss()
 
@@ -190,9 +217,9 @@ if __name__ == "__main__":
     optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
 
     # setup learning rate scheduler 
-    scheduler = StepLR(optimizer_fn, step_size=50, gamma=0.1)
+    scheduler = StepLR(optimizer_fn, step_size=120, gamma=0.1)
 
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
-                        optimizer=optimizer_fn, scheduler=scheduler, loss_fn=criterion, total_epochs=150)
+                        optimizer=optimizer_fn, scheduler=scheduler, loss_fn=criterion, total_epochs=350)
 
-    print("Total number of trainable parameters : {}".format(total_param_count))
+    writer.close()
