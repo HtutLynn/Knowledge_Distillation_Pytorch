@@ -78,6 +78,8 @@ def compute_seperate_losses(model, loss_fn, dataloader):
     correct_loss = 0
     correct_total = 0
 
+    worst_loss = 0
+
     with torch.no_grad():
         for single_test_image, single_label in tqdm(dataloader):
 
@@ -99,7 +101,13 @@ def compute_seperate_losses(model, loss_fn, dataloader):
                 misclassified_total += 1
 
                 # item() method extracts the loss’s value as a Python float.
-                misclassified_loss += loss.item()                
+                misclassified_loss += loss.item()
+
+                if misclassified_loss > worst_loss:
+                    worst_loss = misclassified_loss
+                    worst_image = single_test_image
+                    true_class = single_label.item()
+                    predicted_label = predicted.item()                
 
             
         mean_misclassified_loss = misclassified_loss/misclassified_total
@@ -109,6 +117,10 @@ def compute_seperate_losses(model, loss_fn, dataloader):
     print("Total loss value of the data points that model has mis-classified : {:.3f}".format(misclassified_loss))
     print("Mean loss value of the data points that model has correctly classified : {:.3f}".format(mean_correct_loss))
     print("Total loss value of the data points that model has correctly classified : {:.3f}".format(correct_loss))
+
+    # Show the worst image
+    F.show_image(image_tensor=worst_image, mean=(0.4914, 0.4822, 0.4465),std=(0.2023, 0.1994, 0.2010), 
+                true_class=true_class, predicted_class=predicted_label)
 
 
 if __name__ == "__main__":

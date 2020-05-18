@@ -245,6 +245,32 @@ class Functions(object):
                 param_count += param.numel()
         
         return param_count
+
+    @staticmethod
+    def show_image(image_tensor, mean, std, true_class, predicted_class):
+        """
+        Un-normalize the image tensor and show the image
+        image_tensor: normalized pytorch image tensor
+        mean: [0, 1 ,2] tensor, parameter of the normalization method
+        std : [0, 1, 2] tensor, parameter of the normalization method
+        """
+        true_image = image_tensor.new(*image_tensor.size())
+        
+        # perform de-normalization per channel
+        true_image[:, 0, :, :] = image_tensor[:, 0, :, :] * std[0] + mean[0]
+        true_image[:, 1, :, :] = image_tensor[:, 1, :, :] * std[1] + mean[1]
+        true_image[:, 2, :, :] = image_tensor[:, 2, :, :] * std[2] + mean[2]
+
+        np_image = true_image.squeeze().cpu().numpy()
+
+        plt.imshow(np.transpose(np_image, (1, 2, 0)))
+        # plt.imshow(np_image)
+
+        plt.title("The image with the worst loss")
+        plt.xlabel("True class : {}, predicted class : {}".format(true_class, predicted_class))
+
+        plt.show()
+
         
 class Metrics(object):
     """
