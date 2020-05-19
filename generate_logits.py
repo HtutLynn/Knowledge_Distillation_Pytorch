@@ -30,8 +30,8 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=1000,
 # setup device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 weights_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/vgg/VGG19_acc:93.28.pt"
-train_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/vgg/train_logits_vgg19.npy"
-test_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/vgg/test_logits_vgg19.npy"
+train_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/train_logits_vgg19.npy"
+test_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/test_logits_vgg19.npy"
 
 model = VGG('VGG19')
 model.to(device)

@@ -5,7 +5,8 @@ import torch.functional
 import torchvision
 import torchvision.transforms as transforms
 import torch.optim as optim
-from torch.optim.lr_scheduler import StepLR
+import torch.backends.cudnn as cudnn
+from torch.optim.lr_scheduler import MultiStepLR
 # from torch.autograd import Variable
 # Tensorboard functionality
 from torch.utils.tensorboard import SummaryWriter
@@ -18,7 +19,8 @@ import time
 import os
 import copy
 # from models.resnet import ResNet18
-from models.resnet import ResNet34
+from models.resnet import ResNet18
+# from models.vgg import VGG
 
 # Function for getting learning rate from optimizer
 def get_lr(optimizer):
@@ -127,7 +129,7 @@ def eval(model, loss_fn, dataloader, epoch):
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/resnet/resnet34_acc:{:.3f}_loss:{:.3f}.pt".format(acc, current_loss)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/resnet/resnet18_acc:{:.3f}_loss:{:.3f}.pt".format(acc, current_loss)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -196,7 +198,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     # setup Tensorboard file path
-    writer = SummaryWriter('experiments/teachers/resnet/resnet34_cifar10_#0')
+    writer = SummaryWriter('experiments/teachers/resnet/resnet18')
 
     # Setup best accuracy for comparing and model checkpoints
     best_accuracy = 0.0
@@ -204,9 +206,9 @@ if __name__ == "__main__":
     # Configure the Network
 
     # You can swap out any kind of architectire from /models in here
-    model_fn = ResNet34()
+    model_fn = ResNet18()
     model_fn = model_fn.to(device)
-    
+    cudnn.benchmark = True
 
     # print summary of model
     summary(model_fn, (3, 32, 32))
@@ -214,12 +216,12 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
 
     # Setup the optimizer method for all the parameters
-    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
+    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
     # setup learning rate scheduler 
-    scheduler = StepLR(optimizer_fn, step_size=120, gamma=0.1)
+    scheduler = MultiStepLR(optimizer_fn, milestones=[150, 225, 270], gamma=0.1)
 
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
-                        optimizer=optimizer_fn, scheduler=scheduler, loss_fn=criterion, total_epochs=350)
+                        optimizer=optimizer_fn, scheduler=scheduler, loss_fn=criterion, total_epochs=300)
 
     writer.close()

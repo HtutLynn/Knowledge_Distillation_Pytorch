@@ -9,6 +9,7 @@ import torch.nn.functional as functional
 import torchvision
 import torchvision.transforms as transforms
 import torch.optim as optim
+import torch.backends.cudnn as cudnn
 from torch.optim.lr_scheduler import StepLR
 # from torch.autograd import Variable
 # Tensorboard functionality
@@ -87,9 +88,9 @@ def train(model, optimizer, dataloader, temperature, alpha, epoch):
 
         # write to tensorboard
         writer.add_scalar('train/KD_loss', train_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+        writer.add_scalar('train/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
         writer.add_scalar('train/KL_Div', KLD_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
         writer.add_scalar('train/CE_loss', CE_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
-        writer.add_scalar('train/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
         writer.add_scalar('Learning rate', current_lr)
         writer.add_scalar('Temperature', temperature)
         writer.add_scalar('Alpha', alpha)
@@ -144,9 +145,9 @@ def eval(model, dataloader, temperature, alpha, epoch):
 
             # log the test_loss
             writer.add_scalar('test/KD_loss', test_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+            writer.add_scalar('test/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
             writer.add_scalar('test/KL_Div', KLD_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
             writer.add_scalar('test/CE_loss', CE_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
-            writer.add_scalar('test/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
 
             progress_bar(batch_idx, len(dataloader), 'Test Loss: %.3f | Test Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
@@ -234,8 +235,6 @@ def all_kd_loss_fns(outputs, labels, teacher_outputs, temperature, alpha):
 
     return KD_loss, KL_Divergence, Cross_Entropy_loss
 
-
-
 if __name__ == "__main__":
     
 
@@ -245,8 +244,8 @@ if __name__ == "__main__":
     
     # Student model is PreAct-ResNet18 model
     # Therefore, logits are generated from PreAct-ResNet18 model
-    train_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/vgg/train_logits_vgg19.npy"
-    test_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/KD_data/vgg/test_logits_vgg19.npy"
+    train_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/train_logits_vgg19.npy"
+    test_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/test_logits_vgg19.npy"
 
     # generate data for knowledge distillation
     kd_train_set, kd_test_set = DatasetGenerator.construct(train_logits=train_logits, test_logits=test_logits)
@@ -270,13 +269,14 @@ if __name__ == "__main__":
     best_accuracy = 0.0
 
     # setup Tensorboard file path
-    writer = SummaryWriter('experiments/students/resnet/...')
+    writer = SummaryWriter('experiments/students/vgg/vgg11')
 
     # Configure the Network
     # You can swap out any kind of architectire from /models in here
     # Student model is VGG11 architecture
     model_fn = VGG('VGG11')
     model_fn = model_fn.to(device)
+    cudnn.benchmark = True
     
     summary(model_fn, (3, 32, 32))
 
