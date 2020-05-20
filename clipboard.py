@@ -1,52 +1,148 @@
-"""
-clipboard.py is a python script for testing ideas, api tutorials and
-test implemention of algorithms
-"""
-
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch.utils.data import Dataset
+import torchvision
+from torchvision import transforms
+import torchvision.transforms.functional as TF
+import random
 
-logits = [[ 2.1549, -1.1920,  0.7175, -0.6373,  1.5231, -0.9695, -1.5344, -0.5611,
-                1.2410, -0.2743],
-          [ 2.6602,  4.1885, -2.9084, -1.3497, -2.2745, -2.9993, -3.0944, -3.0027,
-                4.9739,  3.5433]]
+import numpy as np
+from PIL import Image
+from tqdm import tqdm
+import os
+import os.path as ops
 
-tensor_logits = torch.Tensor(logits)
+# Ignore warnings
+import warnings
+warnings.filterwarnings('ignore')
 
-classes = ('plane', 'car', 'bird', 'cat', 'deeer',
-            'dog', 'frog', 'horse', 'ship', 'truck')
+class CustomDataset(Dataset):
+      """
+      Create a dataset that can produced data_augmented images
+      """
+      def __init__(self, logits, dataset, data_aug=False, normalization=True):
+            """
+            Initialize the parameters(logits) for creating a custom dataset
+            :param logits: [train/test] Logits from a teacher model as numpy npy file
+            :param dataset: [train/test] dataset of cifar-10 dataset (not dataloader)
+            :param data_aug: If data augmentation is enabled or not
+            """
+            self._logits = logits
+            self._dataset = dataset
+            self._data_aug = data_aug
+            self._normalization = normalization
 
-outputs = F.softmax(tensor_logits, 1)
-print(outputs)
-value, predictions = torch.max(outputs, 1)
-print(value)
-print(predictions)
-print(classes[predictions[0]])
-print(classes[predictions[1]])
+            if not self._is_source_data_complete():
+                  raise ValueError("Input datas are not complete"
+                                    "Wrong file types or"
+                                    "Files doesn't exit.")
+            
+            if normalization:
+                  self.normalize_fn = transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
 
-maxes = torch.max(tensor_logits, 1, keepdim=True)[0]
-x_exp = torch.exp(tensor_logits - maxes)
-x_exp_sum = torch.sum(x_exp, 1, keepdim=True)
-output_custom = x_exp/x_exp_sum
+            # create Tensordatasets
+            self._KD_data_list = self.construct()
+      
+      def _is_source_data_complete(self):
 
-test = output_custom[0]
-print(torch.sum(test))
+            """
+            Check if source datas are complete
+            """
+            _, file_extension = os.path.splitext(self._logits)
+            correct_file_type = file_extension == '.npy'
+            file_exist = ops.exists(self._logits)
 
-true_exp = torch.exp(tensor_logits)
-true_exp_sum = torch.sum(true_exp, 1, keepdim=True)
-true_outputs = true_exp / true_exp_sum
+            return correct_file_type and file_exist
+      
+      def __len__(self):
+            return len(self._KD_data_list)
 
-print(torch.allclose(outputs, true_outputs))
-print(torch.allclose(outputs, output_custom))
+      def __getitem__(self, idx):
+            if torch.is_tensor(idx):
+                  idx = idx.tolist()
+            
+            sample = {"image": self._KD_data_list[idx][0], "label": self._KD_data_list[idx][1], "logit" : self._KD_data_list[idx][2]}
 
-t_logits = tensor_logits / 4
-t_exp = torch.exp(t_logits)
-t_exp_sum = torch.sum(t_exp, 1, keepdim=True)
-t_outputs = t_exp / t_exp_sum
-t_value, t_predictions = torch.max(t_outputs, 1)
-print(t_outputs)
-print(t_value)
-print(t_predictions)
-print(classes[t_predictions[0]])
-print(classes[t_predictions[1]])
+            if self._data_aug:
+                  sample = self.transform(sample)
+            
+            if self._normalization:
+                  sample = self.normalize(sample)
+
+            return sample
+
+      def normalize(self, sample):
+            """
+            Perform channel-wise normalization
+            """
+            tensor_image = sample["image"]
+
+            normalized_tensor_image = self.normalize_fn(tensor_image)
+
+            # re-assign the image back to sample
+            
+            sample["image"] = normalized_tensor_image
+
+            return sample
+
+      def transform(self, sample):
+            """
+            Perform image augmentation functions on sample['image']
+            """
+
+            image = sample["image"]
+            
+            # Do Random Crop on image
+            i, j, h, w  = transforms.RandomCrop.get_params(
+                  image, output_size=(32, 32)
+            )
+            image = TF.crop(image, i, j, h, w)
+
+            # Do random horizontal flip
+            if random.random() > 0.5:
+                  image = TF.hflip(image)
+
+            # Transform to tensor
+            image = TF.to_tensor(image)
+
+            # re-assign the transformed back to sample
+            sample["image"] = image
+
+            return sample
+
+      def construct(self):
+            """
+            Accept logits that are generated from a teacher model
+            Construct a dataset for knowledge distillation
+            :param train_logits: logits generated for the train set of cifar-10 by a teacher model
+            :param test_logits: 
+            """
+
+            # Load logits (.npy) files
+            logits = np.load(self._logits)
+            # convert the data type to have data type consistency
+            logits_tensor = logits.astype(np.float32)
+
+            KD_data_list = []
+
+            for data, logit in zip(self._dataset, logits):
+                  # `image` is PIL.Image.Image data type
+                  # `label` is int
+                  image, label = data
+
+                  # change labels and logits into numpy array
+                  # Do not convert image to Tensor because image augmentation function
+                  # only accepts PIL images
+                  label = torch.tensor([label])
+                  logit = torch.from_numpy(logit)
+                  
+                  # create a data sample
+                  data_sample = [image, label, logit]
+
+                  # A giant list with lists made of numpy arrays
+                  KD_data_list.append(data_sample)
+
+            # # convert the lists containg tensors into tensors
+            # image_tensor = torch.stack(all_images)
+            # label_tensor = torch.stack(all_labels)
+
+            return KD_data_list

@@ -16,7 +16,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 
-from customs import Functions, Metrics, progress_bar, DatasetGenerator
+from customs import Functions, Metrics, progress_bar, CustomDataset
 from tqdm import tqdm
 import numpy as np
 import time
@@ -53,9 +53,10 @@ def train(model, optimizer, dataloader, temperature, alpha, epoch):
     total = 0
     datacount = len(dataloader)
 
-    for batch_idx, (train_batch, labels_batch, logits_batch) in enumerate(dataloader):
+    for batch_idx, sample in enumerate(dataloader):
 
         # move the data onto the device
+        train_batch, labels_batch, logits_batch = sample["image"], sample["label"], sample["logit"]
         train_batch, labels_batch, logits_batch = train_batch.to(device), labels_batch.to(device), logits_batch.to(device)
 
         # # convert to torch Variables
@@ -63,6 +64,7 @@ def train(model, optimizer, dataloader, temperature, alpha, epoch):
 
         # squeeze the labels_batch to get rid of one dimension
         labels_batch = labels_batch.squeeze(1)
+
         # clear the previous grad 
         optimizer.zero_grad()
 
@@ -123,9 +125,10 @@ def eval(model, dataloader, temperature, alpha, epoch):
     global best_accuracy
 
     with torch.no_grad():
-        for batch_idx, (test_batch, labels_batch, logits_batch) in enumerate(dataloader):
+        for batch_idx, sample in enumerate(dataloader):
 
             # move the data onto device
+            test_batch, labels_batch, logits_batch = sample["image"], sample['label'], sample['logit']
             test_batch, labels_batch, logits_batch = test_batch.to(device), labels_batch.to(device), logits_batch.to(device)
 
             # squeeze the labels_batch to get rid of one dimension
@@ -157,7 +160,7 @@ def eval(model, dataloader, temperature, alpha, epoch):
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/retake/VGG11_T4_a0.5_acc:{:.3f}_loss_{:.3f}.pt".format(acc, current_loss)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/students/vgg-vgg/vgg11_T6_a0.5_acc:{:.3f}_loss_{:.3f}.pt".format(acc, current_loss)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -185,7 +188,7 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, sche
         scheduler.step()
 
         # Evaluate for one epoch on test set
-        eval(model, optimizer, test_dataloader, temperature, alpha, epoch)
+        eval(model, test_dataloader, temperature, alpha, epoch)
 
 def loss_fn(outputs, labels):
     """
@@ -227,7 +230,7 @@ def all_kd_loss_fns(outputs, labels, teacher_outputs, temperature, alpha):
     alpha = alpha
     T = temperature
     KL_Divergence = nn.KLDivLoss()(functional.log_softmax(outputs/T, dim=1),
-                             functional.softmax(teacher_outputs/T, dim=1))
+                             functional.softmax(teacher_outputs/T, dim=1)) * (T * T)
 
     Cross_Entropy_loss = functional.cross_entropy(outputs, labels)
 
@@ -244,11 +247,17 @@ if __name__ == "__main__":
     
     # Student model is PreAct-ResNet18 model
     # Therefore, logits are generated from PreAct-ResNet18 model
-    train_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/train_logits_vgg19.npy"
-    test_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/test_logits_vgg19.npy"
+    train_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/vgg19/train_logits_vgg19.npy"
+    test_logits = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/vgg19/test_logits_vgg19.npy"
+
+    trainset = torchvision.datasets.CIFAR10(root='/home/htut/Desktop/Knowledge_Distillation_Pytorch/datasets', train=True,
+                                            download=True)
+    testset = torchvision.datasets.CIFAR10(root="/home/htut/Desktop/Knowledge_Distillation_Pytorch/datasets", train=False,
+                                            download=True)
 
     # generate data for knowledge distillation
-    kd_train_set, kd_test_set = DatasetGenerator.construct(train_logits=train_logits, test_logits=test_logits)
+    kd_train_set = CustomDataset(logits=train_logits, dataset=trainset, data_aug=True, normalization=True)
+    kd_test_set = CustomDataset(logits=test_logits, dataset=testset, data_aug=False, normalization=True)
 
     trainloader = torch.utils.data.DataLoader(kd_train_set, batch_size=128,
                                             shuffle=True, num_workers=4)
@@ -256,7 +265,7 @@ if __name__ == "__main__":
                                             shuffle=False, num_workers=4)
 
     # Setup hyperparameters
-    temperature = 4
+    temperature = 6
     alpha = 0.5
 
     classes = ('plane', 'car', 'bird', 'cat', 'deeer',
@@ -282,11 +291,11 @@ if __name__ == "__main__":
 
     # Setup the optimizer method for all the parameters
     # optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
+    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
     scheduler = StepLR(optimizer_fn, step_size=50, gamma=0.1)
 
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
-                        optimizer=optimizer_fn, scheduler=scheduler, total_epochs=150, temperature=temperature, alpha=alpha)
+                        optimizer=optimizer_fn, scheduler=scheduler, total_epochs=200, temperature=temperature, alpha=alpha)
 
     writer.close()

@@ -19,7 +19,7 @@ import time
 import os
 import copy
 # from models.resnet import ResNet18
-from models.resnet import ResNet18
+from models.resnet import ResNet50
 # from models.vgg import VGG
 
 # Function for getting learning rate from optimizer
@@ -129,7 +129,7 @@ def eval(model, loss_fn, dataloader, epoch):
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/resnet/resnet18_acc:{:.3f}_loss:{:.3f}.pt".format(acc, current_loss)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/resnet/resnet50_acc:{:.3f}_loss:{:.3f}.pt".format(acc, current_loss)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     # setup Tensorboard file path
-    writer = SummaryWriter('experiments/teachers/resnet/resnet18')
+    writer = SummaryWriter('experiments/teachers/resnet/resnet50')
 
     # Setup best accuracy for comparing and model checkpoints
     best_accuracy = 0.0
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     # Configure the Network
 
     # You can swap out any kind of architectire from /models in here
-    model_fn = ResNet18()
+    model_fn = ResNet50()
     model_fn = model_fn.to(device)
     cudnn.benchmark = True
 

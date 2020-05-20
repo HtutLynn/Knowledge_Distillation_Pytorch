@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 import numpy as np
 from customs import Functions, Metrics
 # import the model
-from models.vgg import VGG
+from models.resnet import ResNet50
 
 
 transforms = transforms.Compose([
@@ -29,11 +29,11 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=1000,
 
 # setup device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-weights_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/vgg/VGG19_acc:93.28.pt"
-train_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/train_logits_vgg19.npy"
-test_logits_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/logits/vgg/test_logits_vgg19.npy"
+weights_path = "checkpoints/teachers/resnet/resnet50_acc:95.370_loss:0.188.pt"
+train_logits_path = "logits/resnet/resnet50/train_logits_resnet50.npy"
+test_logits_path = "logits/resnet/resnet50/test_logits_resnet50.npy"
 
-model = VGG('VGG19')
+model = ResNet50()
 model.to(device)
 
 # Load the model
