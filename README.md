@@ -10,6 +10,8 @@ The repo is entirely implemented in [pytorch](https://pytorch.org/) framework an
 python 3.6
 torch
 torchvision
+torchsummary
+tensorboard
 numpy
 matplotlib
 tqdm
@@ -45,14 +47,26 @@ $ pip install -r requirements.txt
 | test accuracy     | 87.23        | 94.79               | N/A           | N/A          | 93.170     | N/A           |
 | time taken        | 256m         | 259m                | N/A           | N/A          | 65m        | N/A           |
 
+### Experiments
+
+[Experiment #0](https://docs.google.com/document/d/12i2oMNmtcywhCxVUIJyn9bYolVUK8BDUoRc3xWFRYFU/edit?usp=sharing)
+
+[Experiment #1](https://docs.google.com/document/d/1tF1t13Ht0psSqV3v6T8xUzIXuu30N1oU-A9p2QUna2U/edit?usp=sharing)
+
 ### Todos
 
- - Data augmentation performable torch.utils.data.TensorDataset dataset
- - Tensorboard
- - Perfomance metrics
- - Finding the best hyparameters for knowledge distillation methods
+ * [x] Data augmentation performable torch.utils.data.TensorDataset dataset
+ * [x] Tensorboard Visualizations
+ * [x] Compute_loss function for computing the mean loss for the data points that the model has mis-classified and correctly classified for analyisis purpose.
+ * [ ] Multi-teachers => Multi-heads Knowledge distillation
+ * [ ] Perfomance metrics
+ * [ ] Google Colab trainable/runnable notebooks
+ * [ ] Refactor the codebase to more readable format/style
+ * [ ] Finding the best hyparameters for knowledge distillation methods
 
 
 ### References
 [https://github.com/peterliht/knowledge-distillation-pytorch](https://github.com/peterliht/knowledge-distillation-pytorch)
+
+
 [Pytorch-cifar](https://github.com/kuangliu/pytorch-cifar)

@@ -5,7 +5,12 @@ import torch.functional
 import torchvision
 import torchvision.transforms as transforms
 import torch.optim as optim
+import torch.backends.cudnn as cudnn
+from torch.optim.lr_scheduler import MultiStepLR
 # from torch.autograd import Variable
+# Tensorboard functionality
+from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
 
 from customs import Functions, Metrics, progress_bar
 from tqdm import tqdm
@@ -14,17 +19,23 @@ import time
 import os
 import copy
 # from models.resnet import ResNet18
-from models.googlenet import GoogLeNet
+from models.resnet import ResNet50
+# from models.vgg import VGG
 
-def train(model, optimizer, loss_fn, dataloader):
+# Function for getting learning rate from optimizer
+def get_lr(optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
+
+
+def train(model, optimizer, loss_fn, dataloader, epoch):
     """Train the model on `num_steps` batches
     Args:
         model: (torch.nn.Module) the neural network
         optimizer: (torch.optim) optimizer for parameters of model
-        lr_scheduler: (torch.optim.lr_scheduler) Adjustment function for the learning rate
         loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training data
-        num_steps: (int) number of batches to train on, each of size params.batch_size
+        epoch: current epoch
     """
 
     # Set the model into train mode
@@ -33,6 +44,7 @@ def train(model, optimizer, loss_fn, dataloader):
     train_loss = 0
     correct = 0
     total = 0
+    datacount = len(dataloader)
 
     for batch_idx, (train_batch, labels_batch) in enumerate(dataloader):
 
@@ -58,19 +70,25 @@ def train(model, optimizer, loss_fn, dataloader):
         _, predicted = outputs.max(1)
         total += labels_batch.size(0)
         correct += predicted.eq(labels_batch).sum().item()
+        # get learning rate
+        current_lr = get_lr(optimizer=optimizer)
+
+        # write to tensorboard
+        writer.add_scalar('train/loss', train_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+        writer.add_scalar('train/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
+        writer.add_scalar('Learning rate', current_lr)
 
         progress_bar(batch_idx, len(dataloader), 'Train Loss: %.3f | Train Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 
-def eval(model, optimizer, loss_fn, dataloader):
-    """Train the model on `num_steps` batches
+def eval(model, loss_fn, dataloader, epoch):
+    """Evaluate the trained model's performance on Test data on batches
     Args:
         model: (torch.nn.Module) the neural network
-        optimizer: (torch.optim) optimizer for parameters of model
         loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training datas
-        num_steps: (int) number of batches to train on, each of size params.batch_size
+        epoch: current epoch
     """
 
     # Set the model into test mode
@@ -79,7 +97,8 @@ def eval(model, optimizer, loss_fn, dataloader):
     test_loss = 0
     correct = 0
     total = 0
-
+    datacount = len(dataloader)
+    
     # check global variable `best_accuracy`
     global best_accuracy
 
@@ -97,29 +116,34 @@ def eval(model, optimizer, loss_fn, dataloader):
             _, predicted = outputs.max(1)
             total += labels_batch.size(0)
             correct += predicted.eq(labels_batch).sum().item()
+            
+            # log the test_loss
+            writer.add_scalar('test/loss', test_loss/(batch_idx+1), (datacount * (epoch+1)) + (batch_idx+1))
+            writer.add_scalar('test/accuracy', 100.*correct/total, (datacount * (epoch+1)) + (batch_idx+1))
 
             progress_bar(batch_idx, len(dataloader), 'Test Loss: %.3f | Test Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
+    current_loss = test_loss/len(dataloader)
     # save checkpoint
     acc = 100. * correct/total
     if acc > best_accuracy:
         print("Saving the model.....")
-        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/googlenet/googlenet_acc:{}.pt".format(acc)
+        save_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/checkpoints/teachers/resnet/resnet50_acc:{:.3f}_loss:{:.3f}.pt".format(acc, current_loss)
         torch.save(model.state_dict(), save_path)
         
         best_accuracy = acc
 
 
-def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, loss_fn, total_epochs):
+def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, scheduler, loss_fn, total_epochs):
     """Train the model and evaluate every epoch.
     Args:
         model: (torch.nn.Module) the neural network
         train_dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches training data
-        val_dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches validation data
+        test_dataloader: (DataLoader) a torch.utils.data.DataLoader object that fetches validation data
         optimizer: (torch.optim) optimizer for parameters of model
         lr_scheduler: (torch.optim.lr_scheduler) Adjustment function for the learning rate
-        loss_ft: a function that takes batch_output and batch_labels and computes the loss for the batch
+        loss_fn: a function that takes batch_output and batch_labels and computes the loss for the batch
         total_epochs: total number of epochs
     """
 
@@ -128,18 +152,13 @@ def train_and_evaluate(model, train_dataloader, test_dataloader, optimizer, loss
         # Run one epoch for both train and test
         print("Epoch {}/{}".format(epoch + 1, total_epochs))
 
-        if epoch == 150:
-            optimizer = optim.SGD(model.parameters(), lr=0.01,
-                      momentum=0.9, weight_decay=5e-4)
-        elif epoch == 250:
-            optimizer = optim.SGD(model.parameters(), lr=0.001,
-                      momentum=0.9, weight_decay=5e-4)
-
         # compute number of batches in one epoch(one full pass over the training set)
-        train(model, optimizer, loss_fn, train_dataloader)
+        train(model, optimizer, loss_fn, train_dataloader, epoch)
+        
+        scheduler.step()
 
         # Evaluate for one epoch on test set
-        eval(model, optimizer, loss_fn, test_dataloader)
+        eval(model, loss_fn, test_dataloader, epoch)
         
 
 if __name__ == "__main__":
@@ -177,36 +196,32 @@ if __name__ == "__main__":
 
     # setup device for training
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    
+    # setup Tensorboard file path
+    writer = SummaryWriter('experiments/teachers/resnet/resnet50')
 
     # Setup best accuracy for comparing and model checkpoints
     best_accuracy = 0.0
 
     # Configure the Network
 
-    """
-    Finetuning code snippet : need to change the output dimensions of resnet
-    # path of the pretrained weights of resnet-18
-    weights_path = "/home/htut/Desktop/Knowledge_Distillation_Pytorch/models/resnet/resnet18-5c106cde.pth"
-    model_fn = ResNet18()
-    model_fn.load_state_dict(torch.load(weights_path))
-    print("Weights have been loaded!")
-    num_ftrs = model_fn.fc.in_features
-
-    # Set the output dimensions into 10 (total number of classes in cifar-10 dataaset)
-    model_fn.fc = nn.Linear(num_ftrs, 10)
-    """
     # You can swap out any kind of architectire from /models in here
-    # model_fn = ResNet18()
-    model_fn = GoogLeNet()
+    model_fn = ResNet50()
     model_fn = model_fn.to(device)
+    cudnn.benchmark = True
 
+    # print summary of model
+    summary(model_fn, (3, 32, 32))
     # Setup the loss function
     criterion = nn.CrossEntropyLoss()
 
     # Setup the optimizer method for all the parameters
-    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, weight_decay=5e-4)
+    optimizer_fn = optim.SGD(model_fn.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+
+    # setup learning rate scheduler 
+    scheduler = MultiStepLR(optimizer_fn, milestones=[150, 225, 270], gamma=0.1)
 
     train_and_evaluate(model=model_fn, train_dataloader=trainloader, test_dataloader=testloader,
-                        optimizer=optimizer_fn, loss_fn=criterion, total_epochs=350)
+                        optimizer=optimizer_fn, scheduler=scheduler, loss_fn=criterion, total_epochs=300)
 
-    
+    writer.close()

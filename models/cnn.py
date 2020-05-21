@@ -14,7 +14,7 @@ class Net(nn.Module):
     The documentation for all the various components available o you is here: http://pytorch.org/docs/master/nn.html
     """
 
-    def __init__(self, params):
+    def __init__(self, num_channels, dropout_rate):
         """
         Define an convolutional network that predicts the sign from an image. The components
         required are:
@@ -22,7 +22,8 @@ class Net(nn.Module):
             params: (Params) contains num_channels
         """
         super(Net, self).__init__()
-        self.num_channels = params.num_channels
+        self.num_channels = num_channels
+        self.dropout_rate = dropout_rate
         
         # each of the convolution layers below have the arguments (input_channels, output_channels, filter_size,
         # stride, padding). We also include batch normalisation layers that help stabilise training.
@@ -38,7 +39,6 @@ class Net(nn.Module):
         self.fc1 = nn.Linear(4*4*self.num_channels*4, self.num_channels*4)
         self.fcbn1 = nn.BatchNorm1d(self.num_channels*4)
         self.fc2 = nn.Linear(self.num_channels*4, 10)       
-        self.dropout_rate = params.dropout_rate
 
     def forward(self, s):
         """

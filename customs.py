@@ -3,12 +3,15 @@ import torch.nn
 import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import TensorDataset
+from torch.utils.data import Dataset
+import torchvision.transforms.functional as TF
 
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 from tqdm import tqdm
 import os
+import os.path as ops
 import sys
 import time
 import math
@@ -231,6 +234,46 @@ class Functions(object):
 
 
             self.draw_bar_chart(soft_target, numpy_classes)
+
+    @staticmethod
+    def compute_param_count(model):
+        """
+        Compute the total number of trainable parameters in the model
+        :param model: Neural Network model, constructed in pytorch framework
+        :return param_count: Total number of trainable parameters in a network
+        """
+        param_count = 0
+        for param in model.parameters():
+            if param.requires_grad:
+                param_count += param.numel()
+        
+        return param_count
+
+    @staticmethod
+    def show_image(image_tensor, mean, std, true_class, predicted_class):
+        """
+        Un-normalize the image tensor and show the image
+        image_tensor: normalized pytorch image tensor
+        mean: [0, 1 ,2] tensor, parameter of the normalization method
+        std : [0, 1, 2] tensor, parameter of the normalization method
+        """
+        true_image = image_tensor.new(*image_tensor.size())
+        
+        # perform de-normalization per channel
+        true_image[:, 0, :, :] = image_tensor[:, 0, :, :] * std[0] + mean[0]
+        true_image[:, 1, :, :] = image_tensor[:, 1, :, :] * std[1] + mean[1]
+        true_image[:, 2, :, :] = image_tensor[:, 2, :, :] * std[2] + mean[2]
+
+        np_image = true_image.squeeze().cpu().numpy()
+
+        plt.imshow(np.transpose(np_image, (1, 2, 0)))
+        # plt.imshow(np_image)
+
+        plt.title("The image with the worst loss")
+        plt.xlabel("True class : {}, predicted class : {}".format(true_class, predicted_class))
+
+        plt.show()
+
         
 class Metrics(object):
     """
@@ -247,75 +290,139 @@ class Metrics(object):
 
         return 100 * correct / total
 
-class DatasetGenerator(object):
-    """
-    Create dataset from knowledge distillation using Cifar-10 dataset and logits
-    """
+class CustomDataset(Dataset):
+      """
+      Create a dataset that can produced data_augmented images
+      """
+      def __init__(self, logits, dataset, data_aug=False, normalization=True):
+            """
+            Initialize the parameters(logits) for creating a custom dataset
+            :param logits: [train/test] Logits from a teacher model as numpy npy file
+            :param dataset: [train/test] dataset of cifar-10 dataset (not dataloader)
+            :param data_aug: If data augmentation is enabled or not
+            """
+            self._logits = logits
+            self._dataset = dataset
+            self._data_aug = data_aug
+            self._normalization = normalization
 
-    def __init__(self):
-        pass
+            if not self._is_source_data_complete():
+                  raise ValueError("Input datas are not complete"
+                                    "Wrong file types or"
+                                    "Files doesn't exit.")
+            
+            if normalization:
+                  self.normalize_fn = transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
 
-    @staticmethod
-    def construct(train_logits, test_logits):
-        """
-        Accept logits that are generated from a teacher model
-        Construct a dataset for knowledge distillation
-        :param train_logits: logits generated for the train set of cifar-10 by a teacher model
-        :param test_logits: 
-        """
+            # create Tensordatasets
+            self._KD_data_list = self.construct()
+      
+      def _is_source_data_complete(self):
 
-        # Load logits (.npy) files
-        train_logits = np.load(train_logits)
-        train_tensor = torch.from_numpy(train_logits)
-        # convert the data type to have data type consistency
-        train_tensor = train_tensor.float()
-        test_logits = np.load(test_logits)
-        test_tensor = torch.from_numpy(test_logits)
-        # convert the data type to have data type consistency
-        test_tensor = test_tensor.float()
+            """
+            Check if source datas are complete
+            """
+            _, file_extension = os.path.splitext(self._logits)
+            correct_file_type = file_extension == '.npy'
+            file_exist = ops.exists(self._logits)
 
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-        ])
-        trainset = torchvision.datasets.CIFAR10(root='/home/htut/Desktop/Knowledge_Distillation_Pytorch/datasets', train=True,
-                                                    download=True, transform=transform)
-        trainloader = torch.utils.data.DataLoader(trainset, batch_size=1,
-                                                shuffle=False, num_workers=0)
+            return correct_file_type and file_exist
+      
+      def __len__(self):
+            return len(self._KD_data_list)
 
-        testset = torchvision.datasets.CIFAR10(root='/home/htut/Desktop/Knowledge_Distillation_Pytorch/datasets', train=False,
-                                                    download=False, transform=transform)
-        testloader = torch.utils.data.DataLoader(testset, batch_size=1,
-                                                shuffle=False, num_workers=0)
+      def __getitem__(self, idx):
+            if torch.is_tensor(idx):
+                  idx = idx.tolist()
+            
+            sample = {"image": self._KD_data_list[idx][0], "label": self._KD_data_list[idx][1], "logit" : self._KD_data_list[idx][2]}
 
-        all_train_images, all_train_labels = [], []
-        all_test_images, all_test_labels = [], []
+            if self._data_aug:
+                  sample = self.transform(sample)
+            
+            if self._normalization:
+                  sample = self.normalize(sample)
 
-        for train_data in tqdm(trainloader):
-            train_image, train_label = train_data
-            train_image = train_image.squeeze()# squeeze for deleting batch dimension
+            return sample
+
+      def normalize(self, sample):
+            """
+            Perform channel-wise normalization
+            """
+            image = sample["image"]
+
+            if torch.is_tensor(image):
+                tensor_image = image
+            else:
+                tensor_image = TF.to_tensor(image)
+    
+            normalized_tensor_image = self.normalize_fn(tensor_image)
+
+            # re-assign the image back to sample
+            
+            sample["image"] = normalized_tensor_image
+
+            return sample
+
+      def transform(self, sample):
+            """
+            Perform image augmentation functions on sample['image']
+            """
+
+            image = sample["image"]
+            
+            # Do Random Crop on image
+            i, j, h, w  = transforms.RandomCrop.get_params(
+                  image, output_size=(32, 32)
+            )
+            image = TF.crop(image, i, j, h, w)
+
+            # Do random horizontal flip
+            if random.random() > 0.5:
+                  image = TF.hflip(image)
+
+            # Transform to tensor
+            image = TF.to_tensor(image)
+
+            # re-assign the transformed back to sample
+            sample["image"] = image
+
+            return sample
+
+      def construct(self):
+            """
+            Accept logits that are generated from a teacher model
+            Construct a dataset for knowledge distillation
+            :param train_logits: logits generated for the train set of cifar-10 by a teacher model
+            :param test_logits: 
+            """
+
+            # Load logits (.npy) files
+            logits = np.load(self._logits)
             # convert the data type to have data type consistency
-            # train_label = train_label.float()
-            all_train_images.append(train_image)
-            all_train_labels.append(train_label)
+            logits_tensor = logits.astype(np.float32)
 
-        for test_data in tqdm(testloader):
-            test_image, test_label = test_data
-            test_image = test_image.squeeze() # squeeze for deleting batch dimension
-            # convert the data type to have data type consistency
-            # test_label = test_label.float()
-            all_test_images.append(test_image)
-            all_test_labels.append(test_label)
+            KD_data_list = []
 
-        # convert the lists containg tensors into tensors
-        train_image_tensor = torch.stack(all_train_images)
-        test_image_tensor = torch.stack(all_test_images)
+            for data, logit in zip(self._dataset, logits):
+                  # `image` is PIL.Image.Image data type
+                  # `label` is int
+                  image, label = data
 
-        train_label_tensor = torch.stack(all_train_labels)
-        test_label_tensor = torch.stack(all_test_labels)
+                  # change labels and logits into numpy array
+                  # Do not convert image to Tensor because image augmentation function
+                  # only accepts PIL images
+                  label = torch.tensor([label])
+                  logit = torch.from_numpy(logit)
+                  
+                  # create a data sample
+                  data_sample = [image, label, logit]
 
-        # construct train datasets for Knowledge Distillation
-        KD_train_dataset = TensorDataset(train_image_tensor, train_label_tensor, train_tensor)
-        KD_test_dataset = TensorDataset(test_image_tensor, test_label_tensor, test_tensor)
+                  # A giant list with lists made of numpy arrays
+                  KD_data_list.append(data_sample)
 
-        return KD_train_dataset, KD_test_dataset
+            # # convert the lists containg tensors into tensors
+            # image_tensor = torch.stack(all_images)
+            # label_tensor = torch.stack(all_labels)
+
+            return KD_data_list
